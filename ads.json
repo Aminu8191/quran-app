@@ -1,0 +1,10 @@
+{
+  "format": "banner",
+  "enabled": true,
+  "unit_first": "ca-app-pub-3940256099942544/8691691433",
+  "unit_return": "ca-app-pub-3940256099942544/1033173712",
+  "unit_banner": "ca-app-pub-3940256099942544/9214589741",
+  "unit_app_open": "ca-app-pub-3940256099942544/9257395921",
+  "return_min_gap_sec": 20,
+  "first_wait_ms": 5000
+}
