@@ -24,12 +24,12 @@ object AppSettings {
             .mapNotNull { it.toIntOrNull() }.toSet()
     }
 
-    fun setLang(l: String) {
+    fun changeLang(l: String) {
         lang = l
         prefs.edit().putString("lang", l).apply()
     }
 
-    fun setAutoNext(v: Boolean) {
+    fun changeAutoNext(v: Boolean) {
         autoNext = v
         prefs.edit().putBoolean("auto_next", v).apply()
         QuranApp.instance.controller.applyAutoNext()

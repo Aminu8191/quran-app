@@ -498,10 +498,10 @@ fun SettingsScreen(onBack: () -> Unit) {
             CardColumn {
                 listOf("en" to "English", "ha" to "Hausa").forEach { (code, label) ->
                     Row(
-                        Modifier.fillMaxWidth().clickable { AppSettings.setLang(code) }.padding(horizontal = 12.dp, vertical = 6.dp),
+                        Modifier.fillMaxWidth().clickable { AppSettings.changeLang(code) }.padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        RadioButton(selected = AppSettings.lang == code, onClick = { AppSettings.setLang(code) })
+                        RadioButton(selected = AppSettings.lang == code, onClick = { AppSettings.changeLang(code) })
                         Text(label, color = TextMain, fontSize = 16.sp)
                     }
                 }
@@ -517,7 +517,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                             color = TextDim, fontSize = 12.sp
                         )
                     }
-                    Switch(checked = AppSettings.autoNext, onCheckedChange = { AppSettings.setAutoNext(it) })
+                    Switch(checked = AppSettings.autoNext, onCheckedChange = { AppSettings.changeAutoNext(it) })
                 }
             }
 
