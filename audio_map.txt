@@ -1,0 +1,24 @@
+# Which ORIGINAL file (right column, number in Quran32k.zip) becomes which surah (left column).
+# Original files 076..114 were shifted by one because surah 76 (Al-Insan) was never recorded.
+# Files 001-075 and 081-098 are used as they are. 049 comes from release asset 049.m4a.
+# Surahs with NO audio: 076, 099, 110 (+ 086, 088, 089, 094)
+# dst src
+077 076
+078 077
+079 078
+080 080
+100 099
+101 100
+102 101
+103 102
+104 103
+105 104
+106 105
+107 106
+108 107
+109 108
+111 110
+112 111
+113 112
+114 113
+115 114

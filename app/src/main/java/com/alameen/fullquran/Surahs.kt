@@ -1,7 +1,11 @@
 package com.alameen.fullquran
 
 data class Surah(val n: Int, val en: String, val ar: String, val ayahs: Int) {
-    fun title(): String = if (AppSettings.lang == "ha") "Surat $en" else en
+    fun title(): String = when {
+        n == 115 -> if (AppSettings.lang == "ha") "Addu'ar Kammala Alƙur'ani" else en
+        AppSettings.lang == "ha" -> "Surat $en"
+        else -> en
+    }
 }
 
 private val RAW = listOf(
@@ -48,7 +52,7 @@ private val AYAHS = intArrayOf(
 val SURAHS: List<Surah> = RAW.mapIndexed { i, s ->
     val p = s.split("|")
     Surah(i + 1, p[0], p[1], AYAHS[i])
-}
+} + Surah(115, "Du'a Khatmil Qur'an", "دعاء ختم القرآن", 0)
 
 fun normalizeName(s: String): String =
     s.lowercase().replace("-", "").replace("'", "").replace(" ", "")

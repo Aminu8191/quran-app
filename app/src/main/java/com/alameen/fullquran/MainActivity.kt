@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,6 +37,11 @@ fun Root(activity: MainActivity) {
     var splashDone by rememberSaveable { mutableStateOf(false) }
     var screen by rememberSaveable { mutableStateOf("home") }
 
+    // keeps the scroll position of the surah list when going to the player and back
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = (QuranApp.instance.controller.currentSurah - 1).coerceAtLeast(0)
+    )
+
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     if (!splashDone) {
@@ -61,6 +67,7 @@ fun Root(activity: MainActivity) {
             "player" -> PlayerScreen { screen = "home" }
             "settings" -> SettingsScreen { screen = "home" }
             else -> HomeScreen(
+                listState = listState,
                 onOpenPlayer = { screen = "player" },
                 onOpenSettings = { screen = "settings" }
             )

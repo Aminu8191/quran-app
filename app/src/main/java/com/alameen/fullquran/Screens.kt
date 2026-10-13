@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -105,7 +106,7 @@ fun SplashScreen() {
 
 // ============================== HOME ==============================
 @Composable
-fun HomeScreen(onOpenPlayer: () -> Unit, onOpenSettings: () -> Unit) {
+fun HomeScreen(listState: LazyListState, onOpenPlayer: () -> Unit, onOpenSettings: () -> Unit) {
     val ctrl = QuranApp.instance.controller
     var query by remember { mutableStateOf("") }
     var tab by remember { mutableIntStateOf(0) }
@@ -165,7 +166,7 @@ fun HomeScreen(onOpenPlayer: () -> Unit, onOpenSettings: () -> Unit) {
                 )
             }
         } else {
-            LazyColumn(Modifier.weight(1f)) {
+            LazyColumn(Modifier.weight(1f), state = listState) {
                 items(list, key = { it.n }) { s ->
                     val has = ctrl.hasAudio(s.n)
                     SurahRow(
@@ -206,7 +207,7 @@ fun SurahRow(
             Modifier.size(42.dp).clip(CircleShape).background(if (current) Gold else Color(0xFF145A3F)),
             contentAlignment = Alignment.Center
         ) {
-            Text("${s.n}", color = if (current) OnGold else GoldLight, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(if (s.n > 114) "✦" else "${s.n}", color = if (current) OnGold else GoldLight, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -214,6 +215,7 @@ fun SurahRow(
             val sub = when {
                 !hasAudio -> tr("No audio", "Babu audio")
                 playing -> "▶ " + tr("Playing", "Ana kunnawa")
+                s.ayahs == 0 -> tr("Du'a", "Addu'a")
                 else -> "${s.ayahs} " + tr("ayahs", "ayoyi")
             }
             Text(sub, color = if (playing) Gold else TextDim.copy(alpha = a), fontSize = 12.sp)
@@ -280,6 +282,7 @@ fun PlayerScreen(onBack: () -> Unit) {
     var dragValue by remember { mutableFloatStateOf(0f) }
     var showRepeat by remember { mutableStateOf(false) }
     var showSleep by remember { mutableStateOf(false) }
+    var showSpeed by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -368,6 +371,9 @@ fun PlayerScreen(onBack: () -> Unit) {
                 val sl = c.sleepRemainingSec
                 val slText = if (sl > 0) "%d:%02d".format(sl / 60, sl % 60) else tr("Off", "A kashe")
                 AssistChip(onClick = { showSleep = true }, label = { Text(tr("Sleep", "Barci") + ": " + slText) })
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(onClick = { showSpeed = true }, label = { Text(tr("Speed", "Gudu") + ": " + speedLabel(c.speed)) })
                 val isFav = s != null && s.n in AppSettings.favorites
                 IconButton(onClick = { s?.let { AppSettings.toggleFav(it.n) } }) {
                     Icon(if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder, null, tint = if (isFav) Gold else TextDim)
@@ -380,6 +386,27 @@ fun PlayerScreen(onBack: () -> Unit) {
 
     if (showRepeat) RepeatDialog(c.repeatTarget, { c.setRepeat(it); showRepeat = false }, { showRepeat = false })
     if (showSleep) SleepDialog({ c.setSleepMinutes(it); showSleep = false }, { showSleep = false })
+    if (showSpeed) SpeedDialog(c.speed, { c.changeSpeed(it); showSpeed = false }, { showSpeed = false })
+}
+
+private fun speedLabel(v: Float): String =
+    if (v == v.toInt().toFloat()) "${v.toInt()}x" else "${v}x"
+
+@Composable
+private fun SpeedDialog(current: Float, onPick: (Float) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Close", "Rufe")) } },
+        title = { Text(tr("Playback speed", "Gudun karatu")) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f).forEach { v ->
+                    OptionButton(speedLabel(v), current == v, Modifier.fillMaxWidth()) { onPick(v) }
+                }
+            }
+        }
+    )
 }
 
 @Composable
@@ -458,6 +485,17 @@ private fun openUrl(ctx: Context, url: String) {
     }
 }
 
+private fun openBatterySettings(ctx: Context) {
+    try {
+        ctx.startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+    } catch (_: Exception) {
+        try {
+            ctx.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
+        } catch (_: Exception) {
+        }
+    }
+}
+
 private fun openEmail(ctx: Context) {
     try {
         val i = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$SUPPORT_EMAIL"))
@@ -518,6 +556,17 @@ fun SettingsScreen(onBack: () -> Unit) {
                         )
                     }
                     Switch(checked = AppSettings.autoNext, onCheckedChange = { AppSettings.changeAutoNext(it) })
+                }
+            }
+
+            CardColumn {
+                Column(Modifier.fillMaxWidth().clickable { openBatterySettings(ctx) }.padding(16.dp)) {
+                    Text(tr("Keep playing in background", "Ci gaba da kunnawa a background"), color = TextMain, fontSize = 16.sp)
+                    Text(
+                        tr("Open battery settings and set this app to 'No restrictions' so the notification does not disappear",
+                            "Buɗe saitin baturi ka sa app ɗin 'Babu ƙuntatawa' don kada notification ya ɓace"),
+                        color = TextDim, fontSize = 12.sp
+                    )
                 }
             }
 

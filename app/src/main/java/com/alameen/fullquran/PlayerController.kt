@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -37,7 +38,7 @@ class PlayerController(private val app: Application) {
     /** Surah numbers that actually have an audio file inside the app. */
     val available: List<Int> = (app.assets.list("audio") ?: emptyArray())
         .mapNotNull { it.substringBefore('.').toIntOrNull() }
-        .filter { it in 1..114 }
+        .filter { it in 1..115 }
         .sorted()
 
     var currentSurah by mutableIntStateOf(0)
@@ -49,6 +50,9 @@ class PlayerController(private val app: Application) {
     var repeatDone by mutableIntStateOf(0)
         private set
     var sleepRemainingSec by mutableIntStateOf(0)
+        private set
+
+    var speed by mutableFloatStateOf(prefs.getFloat("speed", 1f))
         private set
 
     private var playlistReady = false
@@ -67,6 +71,13 @@ class PlayerController(private val app: Application) {
             }
         })
         applyAutoNext()
+        player.setPlaybackSpeed(speed)
+    }
+
+    fun changeSpeed(v: Float) {
+        speed = v
+        player.setPlaybackSpeed(v)
+        prefs.edit().putFloat("speed", v).apply()
     }
 
     fun start() {

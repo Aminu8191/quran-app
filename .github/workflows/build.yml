@@ -18,27 +18,25 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
 
-      - name: Download and unpack audio (release audio-v1)
+      - name: Download and build audio (release audio-v1)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p audio_dl && cd audio_dl
+          mkdir -p audio_dl/extra && cd audio_dl
           gh release download audio-v1 --repo "${{ github.repository }}" -p 'Quran32k.zip.part*'
-          ls -l
           cat Quran32k.zip.part* > Quran32k.zip
           unzip -q Quran32k.zip
-          mkdir -p ../app/src/main/assets/audio
-          mv Quran32k/*.m4a ../app/src/main/assets/audio/
+          gh release download audio-v1 --repo "${{ github.repository }}" -p '049.m4a' -D extra
           cd ..
+          bash scripts/build_audio.sh audio_dl/Quran32k audio_dl/extra app/src/main/assets/audio
           rm -rf audio_dl
           COUNT=$(ls app/src/main/assets/audio | wc -l)
           echo "Audio files: $COUNT"
-          test "$COUNT" -eq 109
+          test "$COUNT" -eq 108
 
       - name: Prepare signing key (optional)
         env:
@@ -57,7 +55,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: gradle assembleRelease --no-daemon --stacktrace
+        run: gradle assembleRelease --no-daemon --console=plain
 
       - name: Publish APK to Release "apk-latest"
         env:
