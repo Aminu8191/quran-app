@@ -1,10 +1,10 @@
 {
   "format": "banner",
   "enabled": true,
-  "unit_first": "ca-app-pub-3940256099942544/8691691433",
-  "unit_return": "ca-app-pub-3940256099942544/1033173712",
-  "unit_banner": "ca-app-pub-3940256099942544/9214589741",
-  "unit_app_open": "ca-app-pub-3940256099942544/9257395921",
+  "unit_first": "ca-app-pub-8567720425475375/9982980928",
+  "unit_return": "ca-app-pub-8567720425475375/3996157074",
+  "unit_banner": "ca-app-pub-8567720425475375/4298664543",
+  "unit_app_open": "ca-app-pub-8567720425475375/7061304118",
   "return_min_gap_sec": 20,
   "first_wait_ms": 5000
 }
