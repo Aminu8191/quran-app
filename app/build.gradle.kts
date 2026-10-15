@@ -33,6 +33,7 @@ android {
         buildConfigField("String", "UNIT_APP_OPEN", "\"${conf("unit_app_open", "ca-app-pub-3940256099942544/9257395921")}\"")
         buildConfigField("int", "RETURN_MIN_GAP_SEC", conf("return_min_gap_sec", "20"))
         buildConfigField("long", "FIRST_WAIT_MS", conf("first_wait_ms", "5000") + "L")
+        buildConfigField("String", "AUDIO_BASE_URL", "\"${conf("audio_base_url", "https://github.com/Aminu8191/quran-app/releases/download/audio-v2/")}\"")
         buildConfigField("String", "REMOTE_CONFIG_URL", "\"${conf("remote_config_url", "")}\"")
     }
 
@@ -64,7 +65,7 @@ android {
     }
 
     androidResources {
-        noCompress += listOf("m4a")
+        noCompress += listOf("m4a", "opus", "ogg")
     }
 
     compileOptions {

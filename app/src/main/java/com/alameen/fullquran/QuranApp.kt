@@ -10,6 +10,7 @@ class QuranApp : Application() {
         super.onCreate()
         instance = this
         AppSettings.init(this)
+        AudioStore.init(this)
         controller = PlayerController(this)
         controller.restore()
         controller.start()

@@ -1,7 +1,9 @@
 # Full Quran – Sheikh Usman Birnin Kebbi (Android)
 
-Offline Quran audio player (Kotlin + Jetpack Compose + Media3 + AdMob).
+Quran audio player (Kotlin + Jetpack Compose + Media3 + AdMob).
 
-- Audio (109 surahs, 32 kbps mono) is stored in GitHub Release `audio-v1` as `Quran32k.zip.part00..03`.
-- Run **Actions → Build APK → Run workflow**. The APK appears in Release `apk-latest`.
+- The APK is small. Each surah is downloaded once from the GitHub release `audio-v2`
+  (`001.opus` ... `115.opus`) and then works offline.
+- Build: **Actions -> Build APK -> Run workflow**. The APK appears in release `apk-latest`.
+- Audio files are made with `scripts/make_audio.sh` and uploaded with `scripts/upload_audio.sh` (Termux).
 - Ads: see `ADS_GUIDE.md`. Defaults are in `ads.conf`.

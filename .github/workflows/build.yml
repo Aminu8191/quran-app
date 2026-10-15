@@ -9,7 +9,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -21,22 +21,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-
-      - name: Download and build audio (release audio-v1)
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p audio_dl/extra && cd audio_dl
-          gh release download audio-v1 --repo "${{ github.repository }}" -p 'Quran32k.zip.part*'
-          cat Quran32k.zip.part* > Quran32k.zip
-          unzip -q Quran32k.zip
-          gh release download audio-v1 --repo "${{ github.repository }}" -p '049.m4a' -D extra
-          cd ..
-          bash scripts/build_audio.sh audio_dl/Quran32k audio_dl/extra app/src/main/assets/audio
-          rm -rf audio_dl
-          COUNT=$(ls app/src/main/assets/audio | wc -l)
-          echo "Audio files: $COUNT"
-          test "$COUNT" -eq 108
 
       - name: Prepare signing key (optional)
         env:

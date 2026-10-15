@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Search
@@ -112,8 +113,9 @@ fun HomeScreen(listState: LazyListState, onOpenPlayer: () -> Unit, onOpenSetting
     var tab by remember { mutableIntStateOf(0) }
     val q = normalizeName(query)
     val favs = AppSettings.favorites
+    var toDelete by remember { mutableIntStateOf(0) }
     val list = SURAHS.filter { s ->
-        (tab == 0 || s.n in favs) &&
+        (tab == 0 || (tab == 1 && s.n in favs) || (tab == 2 && AudioStore.has(s.n))) &&
             (q.isEmpty() || s.n.toString() == q || normalizeName(s.en).contains(q) ||
                 s.ar.contains(query.trim()))
     }
@@ -154,13 +156,24 @@ fun HomeScreen(listState: LazyListState, onOpenPlayer: () -> Unit, onOpenSetting
 
         Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = tab == 0, onClick = { tab = 0 }, label = { Text(tr("All", "Duka")) })
-            FilterChip(selected = tab == 1, onClick = { tab = 1 }, label = { Text(tr("Favorites", "Waɗanda aka fi so")) })
+            FilterChip(selected = tab == 1, onClick = { tab = 1 }, label = { Text(tr("Favorites", "Fi so")) })
+            FilterChip(selected = tab == 2, onClick = { tab = 2 }, label = { Text(tr("Downloaded", "An sauke")) })
+        }
+
+        if (AudioStore.downloaded.isEmpty()) {
+            Text(
+                tr("Tap a surah to download and listen. Once downloaded, it works without internet.",
+                    "Danna sura don saukewa da saurare. Idan an sauke ta, tana aiki ba tare da intanet ba."),
+                color = Gold, fontSize = 13.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
         }
 
         if (list.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
                     if (tab == 1 && query.isEmpty()) tr("No favorites yet. Tap the heart on a surah.", "Babu wanda aka fi so tukuna. Danna zuciya a kan sura.")
+                    else if (tab == 2 && query.isEmpty()) tr("Nothing downloaded yet. Tap the arrow on a surah.", "Ba a sauke komai ba tukuna. Danna kibiya a kan sura.")
                     else tr("No surah found", "Ba a samu sura ba"),
                     color = TextDim, textAlign = TextAlign.Center, modifier = Modifier.padding(24.dp)
                 )
@@ -168,15 +181,22 @@ fun HomeScreen(listState: LazyListState, onOpenPlayer: () -> Unit, onOpenSetting
         } else {
             LazyColumn(Modifier.weight(1f), state = listState) {
                 items(list, key = { it.n }) { s ->
-                    val has = ctrl.hasAudio(s.n)
+                    val local = AudioStore.has(s.n)
                     SurahRow(
                         s = s,
-                        hasAudio = has,
+                        remote = hasRemoteAudio(s.n),
+                        local = local,
+                        prog = AudioStore.progress[s.n],
                         current = ctrl.currentSurah == s.n,
                         playing = ctrl.currentSurah == s.n && ctrl.isPlaying,
                         fav = s.n in favs,
-                        onClick = { ctrl.play(s.n); onOpenPlayer() },
-                        onFav = { AppSettings.toggleFav(s.n) }
+                        onClick = {
+                            if (local) { ctrl.play(s.n); onOpenPlayer() } else ctrl.downloadAndPlay(s.n)
+                        },
+                        onFav = { AppSettings.toggleFav(s.n) },
+                        onDownload = { AudioStore.download(s.n) },
+                        onCancel = { AudioStore.cancel(s.n) },
+                        onDelete = { toDelete = s.n }
                     )
                 }
             }
@@ -185,21 +205,33 @@ fun HomeScreen(listState: LazyListState, onOpenPlayer: () -> Unit, onOpenSetting
         if (ctrl.currentSurah != 0) MiniPlayer(onOpenPlayer)
         BannerAd()
     }
+
+    if (toDelete != 0) {
+        AlertDialog(
+            onDismissRequest = { toDelete = 0 },
+            title = { Text(tr("Delete download?", "A goge abin da aka sauke?")) },
+            text = { Text(SURAHS[toDelete - 1].title()) },
+            confirmButton = {
+                TextButton(onClick = { AudioStore.delete(toDelete); toDelete = 0 }) { Text(tr("Delete", "Goge")) }
+            },
+            dismissButton = { TextButton(onClick = { toDelete = 0 }) { Text(tr("Cancel", "Soke")) } }
+        )
+    }
 }
 
 @Composable
 fun SurahRow(
-    s: Surah, hasAudio: Boolean, current: Boolean, playing: Boolean, fav: Boolean,
-    onClick: () -> Unit, onFav: () -> Unit
+    s: Surah, remote: Boolean, local: Boolean, prog: Float?, current: Boolean, playing: Boolean, fav: Boolean,
+    onClick: () -> Unit, onFav: () -> Unit, onDownload: () -> Unit, onCancel: () -> Unit, onDelete: () -> Unit
 ) {
-    val a = if (hasAudio) 1f else 0.45f
+    val a = if (remote) 1f else 0.45f
     Row(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(if (current) CardColor else Surface1)
-            .clickable(enabled = hasAudio, onClick = onClick)
+            .clickable(enabled = remote, onClick = onClick)
             .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -213,20 +245,38 @@ fun SurahRow(
         Column(Modifier.weight(1f)) {
             Text(s.title(), color = TextMain.copy(alpha = a), fontWeight = FontWeight.SemiBold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val sub = when {
-                !hasAudio -> tr("No audio", "Babu audio")
+                !remote -> tr("No audio", "Babu audio")
+                prog != null -> if (prog >= 0f) tr("Downloading", "Ana saukewa") + " " + (prog * 100).toInt() + "%" else tr("Downloading...", "Ana saukewa...")
                 playing -> "▶ " + tr("Playing", "Ana kunnawa")
+                !local -> tr("Not downloaded", "Ba a sauke ba")
                 s.ayahs == 0 -> tr("Du'a", "Addu'a")
                 else -> "${s.ayahs} " + tr("ayahs", "ayoyi")
             }
-            Text(sub, color = if (playing) Gold else TextDim.copy(alpha = a), fontSize = 12.sp)
+            Text(sub, color = if (playing || prog != null) Gold else TextDim.copy(alpha = a), fontSize = 12.sp)
         }
-        Text(s.ar, color = Gold.copy(alpha = a), fontSize = 22.sp)
-        IconButton(onClick = onFav) {
+        Text(s.ar, color = Gold.copy(alpha = a), fontSize = 18.sp)
+        IconButton(onClick = onFav, modifier = Modifier.size(40.dp)) {
             Icon(
                 if (fav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                 contentDescription = null,
                 tint = if (fav) Gold else TextDim
             )
+        }
+        when {
+            !remote -> Spacer(Modifier.width(40.dp))
+            prog != null -> Box(Modifier.size(40.dp).clickable(onClick = onCancel), contentAlignment = Alignment.Center) {
+                if (prog >= 0f) {
+                    CircularProgressIndicator(progress = { prog }, modifier = Modifier.size(24.dp), color = Gold, strokeWidth = 3.dp)
+                } else {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Gold, strokeWidth = 3.dp)
+                }
+            }
+            local -> if (current) Spacer(Modifier.width(40.dp)) else IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Default.Delete, contentDescription = null, tint = TextDim)
+            }
+            else -> IconButton(onClick = onDownload, modifier = Modifier.size(40.dp)) {
+                Icon(painterResource(R.drawable.ic_download), contentDescription = null, tint = Gold)
+            }
         }
     }
 }
@@ -522,6 +572,8 @@ private fun CardColumn(content: @Composable () -> Unit) {
 fun SettingsScreen(onBack: () -> Unit) {
     BackHandler(onBack = onBack)
     val ctx = LocalContext.current
+    var showAll by remember { mutableStateOf(false) }
+    var showDeleteAll by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().background(Bg)) {
         Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -541,6 +593,32 @@ fun SettingsScreen(onBack: () -> Unit) {
                     ) {
                         RadioButton(selected = AppSettings.lang == code, onClick = { AppSettings.changeLang(code) })
                         Text(label, color = TextMain, fontSize = 16.sp)
+                    }
+                }
+            }
+
+            SectionTitle(tr("Downloads", "Saukewa"))
+            CardColumn {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    val mb = remember(AudioStore.downloaded) { AudioStore.totalBytes() / 1_000_000L }
+                    Text(
+                        tr("Downloaded surahs", "Surorin da aka sauke") + ": ${AudioStore.downloaded.size} / $TOTAL_AUDIO",
+                        color = TextMain, fontSize = 16.sp
+                    )
+                    Text("$mb MB " + tr("used on this phone", "a wannan wayar"), color = TextDim, fontSize = 12.sp)
+                    Spacer(Modifier.height(10.dp))
+                    if (AudioStore.bulkRunning) {
+                        Text(
+                            tr("Downloading", "Ana saukewa") + " ${AudioStore.bulkDone} / ${AudioStore.bulkTotal}",
+                            color = Gold, fontSize = 14.sp
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(onClick = { AudioStore.cancelAll() }) { Text(tr("Cancel", "Soke")) }
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { showAll = true }) { Text(tr("Download all", "Sauke duka")) }
+                            OutlinedButton(onClick = { showDeleteAll = true }) { Text(tr("Delete all", "Goge duka")) }
+                        }
                     }
                 }
             }
@@ -602,5 +680,33 @@ fun SettingsScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(24.dp))
         }
         BannerAd()
+    }
+
+    if (showAll) {
+        AlertDialog(
+            onDismissRequest = { showAll = false },
+            title = { Text(tr("Download all surahs?", "A sauke dukan surori?")) },
+            text = {
+                Text(
+                    tr("This needs about 250 MB of data. Use WiFi if you can.",
+                        "Wannan yana buƙatar kusan 250 MB na data. Ka yi amfani da WiFi idan zai yiwu.")
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showAll = false; AudioStore.downloadAll() }) { Text(tr("Download", "Sauke")) }
+            },
+            dismissButton = { TextButton(onClick = { showAll = false }) { Text(tr("Cancel", "Soke")) } }
+        )
+    }
+    if (showDeleteAll) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAll = false },
+            title = { Text(tr("Delete all downloads?", "A goge duk abin da aka sauke?")) },
+            text = { Text(tr("You can download them again later.", "Za ka iya sake saukewa daga baya.")) },
+            confirmButton = {
+                TextButton(onClick = { showDeleteAll = false; AudioStore.deleteAll() }) { Text(tr("Delete", "Goge")) }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteAll = false }) { Text(tr("Cancel", "Soke")) } }
+        )
     }
 }

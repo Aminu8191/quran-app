@@ -2,6 +2,7 @@ package com.alameen.fullquran
 
 import android.app.Application
 import android.content.Context
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.runtime.getValue
@@ -35,11 +36,10 @@ class PlayerController(private val app: Application) {
     private val prefs = app.getSharedPreferences("resume", Context.MODE_PRIVATE)
     private val main = Handler(Looper.getMainLooper())
 
-    /** Surah numbers that actually have an audio file inside the app. */
-    val available: List<Int> = (app.assets.list("audio") ?: emptyArray())
-        .mapNotNull { it.substringBefore('.').toIntOrNull() }
-        .filter { it in 1..115 }
-        .sorted()
+    /** Surah numbers inside the player's playlist, in the same order as the player's items. */
+    private val playlist = mutableListOf<Int>()
+    private var playlistReady = false
+    private var pendingPlay = 0
 
     var currentSurah by mutableIntStateOf(0)
         private set
@@ -51,11 +51,8 @@ class PlayerController(private val app: Application) {
         private set
     var sleepRemainingSec by mutableIntStateOf(0)
         private set
-
     var speed by mutableFloatStateOf(prefs.getFloat("speed", 1f))
         private set
-
-    private var playlistReady = false
 
     init {
         player.addListener(object : Player.Listener {
@@ -84,44 +81,83 @@ class PlayerController(private val app: Application) {
         main.post(ticker)
     }
 
-    private fun fileName(n: Int) = "%03d".format(n)
+    // ---------------- playlist (only surahs that are on the phone) ----------------
+    private fun itemFor(n: Int): MediaItem {
+        val s = SURAHS[n - 1]
+        return MediaItem.Builder()
+            .setMediaId("%03d".format(n))
+            .setUri(Uri.fromFile(AudioStore.file(n)))
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle("${s.en}  |  ${s.ar}")
+                    .setArtist(RECITER)
+                    .setAlbumTitle("Full Quran")
+                    .build()
+            )
+            .build()
+    }
 
     private fun ensurePlaylist() {
         if (playlistReady) return
-        val items = available.map { n ->
-            val s = SURAHS[n - 1]
-            MediaItem.Builder()
-                .setMediaId(fileName(n))
-                .setUri("asset:///audio/${fileName(n)}.m4a")
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle("${s.en}  |  ${s.ar}")
-                        .setArtist(RECITER)
-                        .setAlbumTitle("Full Quran")
-                        .build()
-                )
-                .build()
-        }
-        player.setMediaItems(items, false)
+        val nums = AudioStore.downloaded.sorted()
+        if (nums.isEmpty()) return
+        playlist.clear()
+        playlist.addAll(nums)
+        player.setMediaItems(nums.map { itemFor(it) }, false)
         player.prepare()
         playlistReady = true
     }
 
-    fun hasAudio(n: Int) = n in available
+    fun onSurahDownloaded(n: Int) {
+        if (!playlistReady || n in playlist) return
+        val idx = playlist.count { it < n }
+        playlist.add(idx, n)
+        player.addMediaItem(idx, itemFor(n))
+    }
 
-    fun play(n: Int) {
-        val idx = available.indexOf(n)
+    fun onSurahDeleted(n: Int) {
+        if (!playlistReady) return
+        val idx = playlist.indexOf(n)
         if (idx < 0) return
+        playlist.removeAt(idx)
+        player.removeMediaItem(idx)
+    }
+
+    fun resetPlaylist() {
+        player.pause()
+        player.clearMediaItems()
+        playlist.clear()
+        playlistReady = false
+        currentSurah = 0
+        prefs.edit().remove("surah").remove("pos").apply()
+    }
+
+    // ---------------- controls ----------------
+    fun play(n: Int) {
+        if (!AudioStore.has(n)) return
         ensurePlaylist()
+        val idx = playlist.indexOf(n)
+        if (idx < 0) return
         repeatDone = 0
         player.seekTo(idx, 0)
         applyRepeatMode()
         player.play()
     }
 
+    /** Tap on a surah: play it if it is on the phone, otherwise download it and play when ready. */
+    fun downloadAndPlay(n: Int) {
+        pendingPlay = n
+        AudioStore.download(n) { ok ->
+            if (ok && pendingPlay == n) {
+                pendingPlay = 0
+                play(n)
+            }
+        }
+    }
+
     fun toggle() {
         if (currentSurah == 0) {
-            available.firstOrNull()?.let { play(it) }
+            AudioStore.downloaded.minOrNull()?.let { play(it) }
             return
         }
         ensurePlaylist()
@@ -149,7 +185,7 @@ class PlayerController(private val app: Application) {
         sleepRemainingSec = min * 60
     }
 
-    // ---- resume (continue where you stopped) ----
+    // ---------------- resume (continue where you stopped) ----------------
     fun saveResume() {
         if (currentSurah == 0) return
         prefs.edit()
@@ -161,9 +197,10 @@ class PlayerController(private val app: Application) {
     fun restore() {
         val n = prefs.getInt("surah", 0)
         val pos = prefs.getLong("pos", 0L)
-        val idx = available.indexOf(n)
-        if (idx < 0) return
+        if (n == 0 || !AudioStore.has(n)) return
         ensurePlaylist()
+        val idx = playlist.indexOf(n)
+        if (idx < 0) return
         player.seekTo(idx, pos)
         player.pause()
         currentSurah = n
